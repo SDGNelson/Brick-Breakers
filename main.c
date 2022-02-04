@@ -12,28 +12,28 @@
 typedef struct Brick {
 	Rectangle rect;
 	Color color;
-    bool isAlive;
-    // Row and column could be inferred from position, but IMO better to be explicit here rather than rounding down floats.
-    int rowIndex;
-    int columnIndex;
+	bool isAlive;
+	// Row and column could be inferred from position, but IMO better to be explicit here rather than rounding down floats.
+	int rowIndex;
+	int columnIndex;
 } Brick;
 
 // Falling debris and block.
 typedef struct Particle
 {
-    Rectangle rect;
-    Vector2 velocity;
-    float angleDegrees;
-    float angularVelocity; // degrees per second
-    Color color;
+	Rectangle rect;
+	Vector2 velocity;
+	float angleDegrees;
+	float angularVelocity; // degrees per second
+	Color color;
 } Particle;
 
 typedef enum
 {
-    GAMESTATE_INITIAL,
-    GAMESTATE_PLAYING,
-    GAMESTATE_LOSS,
-    GAMESTATE_WIN,
+	GAMESTATE_INITIAL,
+	GAMESTATE_PLAYING,
+	GAMESTATE_LOSS,
+	GAMESTATE_WIN,
 } GameState;
 
 #define MAX_PARTICLE_COUNT 200
@@ -71,131 +71,131 @@ Sound winSound; // Played when player wins.
 // todo: we should replace with something that has uniform distribution
 float GetRandomFloatValue(float min, float max)
 {
-    return (float)GetRandomValue((int)min, (int)max);
+	return (float)GetRandomValue((int)min, (int)max);
 }
 
 // Z value of 3D cross product.
 float Vector2CrossProduct(Vector2 v1, Vector2 v2)
 {
-    return v1.x * v2.y - v1.y * v2.x;
+	return v1.x * v2.y - v1.y * v2.x;
 }
 
 // Find the hit (if any) between a ray and circle.
 bool RayCircleIntersection(Vector2 rayOrigin, Vector2 rayDirection, Vector2 circleCenter, float circleRadius, float *hitDistAlongRay)
 {
-    Vector2 circleRelativeToRay = Vector2Subtract(circleCenter, rayOrigin);
+	Vector2 circleRelativeToRay = Vector2Subtract(circleCenter, rayOrigin);
 	float circleToRayDistSqr = Vector2LengthSqr(circleRelativeToRay);
 	float circleRadiusSqr = circleRadius * circleRadius;
-    if (circleToRayDistSqr < circleRadiusSqr)
-    {
-        // Ray origin is overlapping circle.
-        *hitDistAlongRay = 0.0f;
-        return true;
-    }
+	if (circleToRayDistSqr < circleRadiusSqr)
+	{
+		// Ray origin is overlapping circle.
+		*hitDistAlongRay = 0.0f;
+		return true;
+	}
 
-    float circleCenterDistAlongRay = Vector2DotProduct(rayDirection, circleRelativeToRay);
-    if (circleCenterDistAlongRay < 0.0f)
-    {
-        // Circle is behind ray.
-        return false;
-    }
+	float circleCenterDistAlongRay = Vector2DotProduct(rayDirection, circleRelativeToRay);
+	if (circleCenterDistAlongRay < 0.0f)
+	{
+		// Circle is behind ray.
+		return false;
+	}
 
-    float distFromCircleToNearestPointOnRaySqr = circleToRayDistSqr - circleCenterDistAlongRay * circleCenterDistAlongRay;
-    // We now have a right triangle where the hypotenuse is the distance between the ray origin and circle center, one of the sides is
-    // the distance along the ray to the projected center, and the other side is the distance between the center and the ray. If the length
-    // of this final side is less than the radius of the circle then the ray is pointing inside the circle.
-    if (distFromCircleToNearestPointOnRaySqr <= circleRadiusSqr)
-    {
-        // We now have another right angle triangle. The hypotenuse is the circle radius, the known side length is the distance between the
-        // circle center and the nearest point on the ray, so we can solve the distance between the nearest point on the ray and the hit.
-        float distWithinCircle = sqrtf(circleRadiusSqr - distFromCircleToNearestPointOnRaySqr);
-        *hitDistAlongRay = circleCenterDistAlongRay - distWithinCircle;
-        return true;
-    }
-    else
-    {
-        // No intersection.
-        return false;
-    }
+	float distFromCircleToNearestPointOnRaySqr = circleToRayDistSqr - circleCenterDistAlongRay * circleCenterDistAlongRay;
+	// We now have a right triangle where the hypotenuse is the distance between the ray origin and circle center, one of the sides is
+	// the distance along the ray to the projected center, and the other side is the distance between the center and the ray. If the length
+	// of this final side is less than the radius of the circle then the ray is pointing inside the circle.
+	if (distFromCircleToNearestPointOnRaySqr <= circleRadiusSqr)
+	{
+		// We now have another right angle triangle. The hypotenuse is the circle radius, the known side length is the distance between the
+		// circle center and the nearest point on the ray, so we can solve the distance between the nearest point on the ray and the hit.
+		float distWithinCircle = sqrtf(circleRadiusSqr - distFromCircleToNearestPointOnRaySqr);
+		*hitDistAlongRay = circleCenterDistAlongRay - distWithinCircle;
+		return true;
+	}
+	else
+	{
+		// No intersection.
+		return false;
+	}
 }
 
 // Find the hit (if any) between a ray and infinite plane.
 bool RayPlaneIntersection(Vector2 rayOrigin, Vector2 rayDirection, Vector2 planeOrigin, Vector2 planeNormal, float *hitDistAlongRay)
 {
-    float rayPlaneCosine = Vector2DotProduct(rayDirection, planeNormal);
-    if (rayPlaneCosine >= 0.0f)
-    {
-        // Ray is either parallel to plane, facing away from plane, or passing through plane from the other side.
-        return false;
-    }
+	float rayPlaneCosine = Vector2DotProduct(rayDirection, planeNormal);
+	if (rayPlaneCosine >= 0.0f)
+	{
+		// Ray is either parallel to plane, facing away from plane, or passing through plane from the other side.
+		return false;
+	}
 
 	// sohcahtoa -> cosine = adjacent/hypotenuse, so hypotenuse = adjacent/cosine
 	// We have a right angle triangle where the adjacent is the line directly from the ray origin to the plane, and the angle is between the
 	// plane normal and the ray direction, so we can solve for the hypotenuse - the distance from the ray origin to the plane.
-    Vector2 planeRelativeToRay = Vector2Subtract(planeOrigin, rayOrigin);
-    float rayDistAlongPlaneNormal = Vector2DotProduct(planeRelativeToRay, planeNormal);
-    if (rayDistAlongPlaneNormal >= 0.0f)
-    {
-        // Ray is either touching or behind plane.
-        return false;
-    }
-    
-    // Both values are negative so we get a positive result.
-    *hitDistAlongRay = rayDistAlongPlaneNormal / rayPlaneCosine;
-    return true;
+	Vector2 planeRelativeToRay = Vector2Subtract(planeOrigin, rayOrigin);
+	float rayDistAlongPlaneNormal = Vector2DotProduct(planeRelativeToRay, planeNormal);
+	if (rayDistAlongPlaneNormal >= 0.0f)
+	{
+		// Ray is either touching or behind plane.
+		return false;
+	}
+
+	// Both values are negative so we get a positive result.
+	*hitDistAlongRay = rayDistAlongPlaneNormal / rayPlaneCosine;
+	return true;
 }
 
 // Find the hit (if any) between a circle and infinite plane.
 bool CirclePlaneIntersection(Vector2 circleOrigin, Vector2 circleDirection, float circleRadius, Vector2 planeOrigin, Vector2 planeNormal, float *hitDistAlongRay)
 {
-    planeOrigin.x += planeNormal.x * circleRadius;
-    planeOrigin.y += planeNormal.y * circleRadius;
-    return RayPlaneIntersection(circleOrigin, circleDirection, planeOrigin, planeNormal, hitDistAlongRay);
+	planeOrigin.x += planeNormal.x * circleRadius;
+	planeOrigin.y += planeNormal.y * circleRadius;
+	return RayPlaneIntersection(circleOrigin, circleDirection, planeOrigin, planeNormal, hitDistAlongRay);
 }
 
 // Find the hit (if any) between a ray and line.
 bool RayLineSegmentIntersection(Vector2 rayOrigin, Vector2 rayDirection, Vector2 lineStart, Vector2 lineEnd, float *hitDistAlongRay)
 {
-    Vector2 lineDelta = Vector2Subtract(lineEnd, lineStart);
-    float lineLength = Vector2Length(lineDelta);
-    if (lineLength <= 0.0f)
-    {
-        return false;
-    }
+	Vector2 lineDelta = Vector2Subtract(lineEnd, lineStart);
+	float lineLength = Vector2Length(lineDelta);
+	if (lineLength <= 0.0f)
+	{
+		return false;
+	}
 
-    float inverseLineLength = 1.0f / lineLength;
-    Vector2 lineDirection;
-    lineDirection.x = lineDelta.x * inverseLineLength;
-    lineDirection.y = lineDelta.y * inverseLineLength;
+	float inverseLineLength = 1.0f / lineLength;
+	Vector2 lineDirection;
+	lineDirection.x = lineDelta.x * inverseLineLength;
+	lineDirection.y = lineDelta.y * inverseLineLength;
 
-    float rayLineSine = Vector2CrossProduct(rayDirection, lineDirection);
-    if (fabs(rayLineSine) < 0.000001f) // epsilon
-    {
-        // Ray and line are collinear or parallel.
-        return false;
-    }
+	float rayLineSine = Vector2CrossProduct(rayDirection, lineDirection);
+	if (fabs(rayLineSine) < 0.000001f) // epsilon
+	{
+		// Ray and line are collinear or parallel.
+		return false;
+	}
 
 	Vector2 lineRelativeToRay = Vector2Subtract(lineStart, rayOrigin);
 
-    // sohcahtoa -> sine = opposite / hypotenuse, opposite = sine * hypotenuse, hypotenuse = opposite / sine
-    float distFromRayOriginToLine = Vector2CrossProduct(lineRelativeToRay, lineDirection);
-    float distAlongRayToLine = distFromRayOriginToLine / rayLineSine;
-    if (distAlongRayToLine <= 0.0f)
-    {
-        // Ray is pointed away from line.
-        return false;
-    }
+	// sohcahtoa -> sine = opposite / hypotenuse, opposite = sine * hypotenuse, hypotenuse = opposite / sine
+	float distFromRayOriginToLine = Vector2CrossProduct(lineRelativeToRay, lineDirection);
+	float distAlongRayToLine = distFromRayOriginToLine / rayLineSine;
+	if (distAlongRayToLine <= 0.0f)
+	{
+		// Ray is pointed away from line.
+		return false;
+	}
 
-    // Project ray onto line.
-    float rayDistAlongLine = Vector2CrossProduct(lineRelativeToRay, rayDirection) / rayLineSine;
-    if (rayDistAlongLine < 0.0f || rayDistAlongLine > lineLength)
-    {
-        // Ray missed the line segment.
-        return false;
-    }
+	// Project ray onto line.
+	float rayDistAlongLine = Vector2CrossProduct(lineRelativeToRay, rayDirection) / rayLineSine;
+	if (rayDistAlongLine < 0.0f || rayDistAlongLine > lineLength)
+	{
+		// Ray missed the line segment.
+		return false;
+	}
 
-    *hitDistAlongRay = distAlongRayToLine;
-    return true;
+	*hitDistAlongRay = distAlongRayToLine;
+	return true;
 }
 
 // Find the hit (if any) between a circle and a rectangle.
@@ -203,27 +203,27 @@ bool RayLineSegmentIntersection(Vector2 rayOrigin, Vector2 rayDirection, Vector2
 bool CircleRectIntersection(Vector2 circleOrigin, Vector2 circleDirection, float circleRadius, Rectangle rect, float *hitDistAlongRay, Vector2 *hitNormal)
 {
 	Vector2 nearestCornerCenter;
-    Vector2 horizontalCornerCenter;
-    Vector2 verticalCornerCenter;
-    float verticalLineNormal;
-    float horizontalLineNormal;
+	Vector2 horizontalCornerCenter;
+	Vector2 verticalCornerCenter;
+	float verticalLineNormal;
+	float horizontalLineNormal;
 
-    if (circleDirection.x > 0.0f)
-    {
-        if (circleDirection.y > 0.0f)
-        {
-            // upper-left
-            nearestCornerCenter.x = rect.x;
-            nearestCornerCenter.y = rect.y;
-            horizontalCornerCenter.x = rect.x + rect.width;
+	if (circleDirection.x > 0.0f)
+	{
+		if (circleDirection.y > 0.0f)
+		{
+			// upper-left
+			nearestCornerCenter.x = rect.x;
+			nearestCornerCenter.y = rect.y;
+			horizontalCornerCenter.x = rect.x + rect.width;
 			horizontalCornerCenter.y = rect.y;
-            verticalCornerCenter.x = rect.x;
-            verticalCornerCenter.y = rect.y + rect.height;
+			verticalCornerCenter.x = rect.x;
+			verticalCornerCenter.y = rect.y + rect.height;
 
-            horizontalLineNormal = -1.0f;
-        }
-        else
-        {
+			horizontalLineNormal = -1.0f;
+		}
+		else
+		{
 			// lower-left
 			nearestCornerCenter.x = rect.x;
 			nearestCornerCenter.y = rect.y + rect.height;
@@ -233,15 +233,15 @@ bool CircleRectIntersection(Vector2 circleOrigin, Vector2 circleDirection, float
 			verticalCornerCenter.y = rect.y;
 
 			horizontalLineNormal = 1.0f;
-        }
+		}
 
-        verticalLineNormal = -1.0f;
-    }
-    else
-    {
-        if (circleDirection.y > 0.0f)
-        {
-            // upper-right
+		verticalLineNormal = -1.0f;
+	}
+	else
+	{
+		if (circleDirection.y > 0.0f)
+		{
+			// upper-right
 			nearestCornerCenter.x = rect.x + rect.width;
 			nearestCornerCenter.y = rect.y;
 			horizontalCornerCenter.x = rect.x;
@@ -250,10 +250,10 @@ bool CircleRectIntersection(Vector2 circleOrigin, Vector2 circleDirection, float
 			verticalCornerCenter.y = rect.y + rect.height;
 
 			horizontalLineNormal = -1.0f;
-        }
-        else
-        {
-            // lower-right
+		}
+		else
+		{
+			// lower-right
 			nearestCornerCenter.x = rect.x + rect.width;
 			nearestCornerCenter.y = rect.y + rect.height;
 			horizontalCornerCenter.x = rect.x;
@@ -262,39 +262,39 @@ bool CircleRectIntersection(Vector2 circleOrigin, Vector2 circleDirection, float
 			verticalCornerCenter.y = rect.y;
 
 			horizontalLineNormal = 1.0f;
-        }
+		}
 
-        verticalLineNormal = 1.0f;
-    }
+		verticalLineNormal = 1.0f;
+	}
 
-    bool hitAnything = false;
-    float nearestDist = 1000.0f;
+	bool hitAnything = false;
+	float nearestDist = 1000.0f;
 
-    if (RayCircleIntersection(circleOrigin, circleDirection, nearestCornerCenter, circleRadius, hitDistAlongRay) && *hitDistAlongRay < nearestDist)
-    {
-        nearestDist = *hitDistAlongRay;
+	if (RayCircleIntersection(circleOrigin, circleDirection, nearestCornerCenter, circleRadius, hitDistAlongRay) && *hitDistAlongRay < nearestDist)
+	{
+		nearestDist = *hitDistAlongRay;
 
-        if (fabs(circleOrigin.x - nearestCornerCenter.x) < fabs(circleOrigin.y - nearestCornerCenter.y))
-        {
-            // Hit was nearest the top or bottom of the circle.
+		if (fabs(circleOrigin.x - nearestCornerCenter.x) < fabs(circleOrigin.y - nearestCornerCenter.y))
+		{
+			// Hit was nearest the top or bottom of the circle.
 			hitNormal->x = 0.0f;
-            hitNormal->y = horizontalLineNormal;
-        }
-        else
+			hitNormal->y = horizontalLineNormal;
+		}
+		else
 		{
 			// Hit was nearest the left or right of the circle.
 			hitNormal->x = verticalLineNormal;
-            hitNormal->y = 0.0f;
-        }
+			hitNormal->y = 0.0f;
+		}
 
-        hitAnything = true;
-    }
+		hitAnything = true;
+	}
 
 	if (RayCircleIntersection(circleOrigin, circleDirection, verticalCornerCenter, circleRadius, hitDistAlongRay) && *hitDistAlongRay < nearestDist)
 	{
 		nearestDist = *hitDistAlongRay;
 		hitNormal->x = verticalLineNormal;
-        hitNormal->y = 0.0f;
+		hitNormal->y = 0.0f;
 		hitAnything = true;
 	}
 
@@ -302,63 +302,63 @@ bool CircleRectIntersection(Vector2 circleOrigin, Vector2 circleDirection, float
 	{
 		nearestDist = *hitDistAlongRay;
 		hitNormal->x = 0.0f;
-        hitNormal->y = horizontalLineNormal;
+		hitNormal->y = horizontalLineNormal;
 		hitAnything = true;
 	}
 
 	// Left or right side of the rect
-    Vector2 verticalLineStart = nearestCornerCenter;
-    verticalLineStart.x += verticalLineNormal * circleRadius;
+	Vector2 verticalLineStart = nearestCornerCenter;
+	verticalLineStart.x += verticalLineNormal * circleRadius;
 	Vector2 verticalLineEnd = verticalCornerCenter;
-    verticalLineEnd.x += verticalLineNormal * circleRadius;
-    if (RayLineSegmentIntersection(circleOrigin, circleDirection, verticalLineStart, verticalLineEnd, hitDistAlongRay) && *hitDistAlongRay < nearestDist)
-    {
-        nearestDist = *hitDistAlongRay;
+	verticalLineEnd.x += verticalLineNormal * circleRadius;
+	if (RayLineSegmentIntersection(circleOrigin, circleDirection, verticalLineStart, verticalLineEnd, hitDistAlongRay) && *hitDistAlongRay < nearestDist)
+	{
+		nearestDist = *hitDistAlongRay;
 		hitNormal->x = verticalLineNormal;
 		hitNormal->y = 0.0f;
-        hitAnything = true;
-    }
+		hitAnything = true;
+	}
 
 	// Top or bottom side of the rect
 	Vector2 horizontalLineStart = nearestCornerCenter;
-    horizontalLineStart.y += horizontalLineNormal * circleRadius;
+	horizontalLineStart.y += horizontalLineNormal * circleRadius;
 	Vector2 horizontalLineEnd = horizontalCornerCenter;
-    horizontalLineEnd.y += horizontalLineNormal * circleRadius;
+	horizontalLineEnd.y += horizontalLineNormal * circleRadius;
 	if (RayLineSegmentIntersection(circleOrigin, circleDirection, horizontalLineStart, horizontalLineEnd, hitDistAlongRay) && *hitDistAlongRay < nearestDist)
 	{
-        nearestDist = *hitDistAlongRay;
-        hitNormal->x = 0.0f;
-        hitNormal->y = horizontalLineNormal;
-        hitAnything = true;
-    }
+		nearestDist = *hitDistAlongRay;
+		hitNormal->x = 0.0f;
+		hitNormal->y = horizontalLineNormal;
+		hitAnything = true;
+	}
 
-    *hitDistAlongRay = nearestDist;
-    return hitAnything;
+	*hitDistAlongRay = nearestDist;
+	return hitAnything;
 }
 
 // Get a particle from the pool, or null if pool is full.
 Particle *SpawnParticle()
 {
-    if (activeParticleCount < MAX_PARTICLE_COUNT)
-    {
-        Particle *next_particle = &particles[activeParticleCount];
+	if (activeParticleCount < MAX_PARTICLE_COUNT)
+	{
+		Particle *next_particle = &particles[activeParticleCount];
 		next_particle->velocity.x = 0.0f;
 		next_particle->velocity.y = 0.0f;
-        next_particle->angleDegrees = 0.0f;
-        next_particle->angularVelocity = 0.0f;
-        ++activeParticleCount;
-        return next_particle;
-    }
-    else
-    {
-        return NULL;
-    }
+		next_particle->angleDegrees = 0.0f;
+		next_particle->angularVelocity = 0.0f;
+		++activeParticleCount;
+		return next_particle;
+	}
+	else
+	{
+		return NULL;
+	}
 }
 
 void ShakeCamera(float scale)
 {
-    cameraShake.position.x += ballDirection.x * ballSpeed * -0.01f * scale;
-    cameraShake.position.y += ballDirection.y * ballSpeed * -0.01f * scale;
+	cameraShake.position.x += ballDirection.x * ballSpeed * -0.01f * scale;
+	cameraShake.position.y += ballDirection.y * ballSpeed * -0.01f * scale;
 }
 
 // Called when the game starts up and when resetting after a win/loss.
@@ -529,7 +529,7 @@ void RunGameFrame()
 	{
 		float moveDistance = ballSpeed * simulationTime;
 
-		// todo: separate collision sweep and result (e.g. hit type enum) from handling of result 
+		// todo: separate collision sweep and result (e.g. hit type enum) from handling of result
 		bool hitAnything = false;
 		float nearestDistance = moveDistance;
 		Vector2 hitNormal = { 0 };
@@ -777,7 +777,7 @@ void RunGameFrame()
 }
 
 // Load sounds embedded as code. Created in ChipTone by SFBGames.
-void LoadSounds() 
+void LoadSounds()
 {
 	Wave loseWave =
 	{
@@ -833,15 +833,15 @@ void LoadSounds()
 // Entry point.
 int main()
 {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    SetTargetFPS(500);
-    InitWindow(600, 600, "Brick Breakers");
+	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+	SetTargetFPS(500);
+	InitWindow(600, 600, "Brick Breakers");
 
-    InitAudioDevice();
+	InitAudioDevice();
 	LoadSounds();
 
-    while (!WindowShouldClose())
-    {
+	while (!WindowShouldClose())
+	{
 		BeginDrawing();
 		ClearBackground(BLACK);
 
@@ -864,11 +864,11 @@ int main()
 				break;
 		}
 
-        EndDrawing();
-    }
+		EndDrawing();
+	}
 
-    CloseAudioDevice();
-    CloseWindow();
+	CloseAudioDevice();
+	CloseWindow();
 
-    return 0;
+	return 0;
 }
